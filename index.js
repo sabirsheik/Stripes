@@ -9,7 +9,7 @@ app.use(morgan('dev'));
 express.json();
 import cors from 'cors'
 app.use(cors({
-  origin: "https://subscription-app-tau.vercel.app/",
+  origin: "https://subscription-app-tau.vercel.app",
   methods: "GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS",
   credentials: true
 }));
