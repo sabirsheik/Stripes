@@ -1,3 +1,4 @@
+<!-- 
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -12,5 +13,358 @@
     <p><b>$49/month</b></p>
     <p>This is the Pro plan</p>
     <a href="/subscribe?plan=pro">Subscribe</a>
+</body>
+</html>
+-->
+
+
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>My Subscriptions — Stripe (Pro)</title>
+  <style>
+    /* Simple clean styles — replace with Tailwind if you prefer */
+    :root{--accent:#6f46c6;--muted:#6b7280;--bg:#f8fafc}
+    body{font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; margin:0; background:var(--bg); color:#0f172a}
+    .container{max-width:1000px;margin:36px auto;padding:22px;background:#fff;border-radius:12px;box-shadow:0 6px 20px rgba(2,6,23,0.08)}
+    header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
+    h1{font-size:20px;margin:0}
+    .muted{color:var(--muted)}
+    .plans{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:18px}
+    .card{flex:1 1 280px;border:1px solid #e6eef8;padding:18px;border-radius:10px}
+    .price{font-size:18px;font-weight:700;color:var(--accent)}
+    .btn{display:inline-block;padding:8px 14px;border-radius:8px;background:var(--accent);color:white;text-decoration:none;border:0;cursor:pointer}
+    .btn.ghost{background:transparent;color:var(--accent);border:1px solid #e6e6f2}
+    .grid{display:grid;grid-template-columns:1fr 340px;gap:18px}
+    .box{background:#fbfdff;padding:16px;border-radius:10px;border:1px solid #f1f5f9}
+    .small{font-size:13px;color:var(--muted)}
+    table{width:100%;border-collapse:collapse}
+    td,th{padding:8px;border-bottom:1px solid #eef2f7;text-align:left}
+    .badge{display:inline-block;padding:4px 8px;border-radius:999px;background:#eef2ff;color:#0b4a8b;font-weight:600;font-size:12px}
+    .danger{background:#fff0f0;color:#9b1c1c}
+    .success{background:#ecfdf5;color:#065f46}
+    .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+    .hint{margin-top:8px;font-size:13px;color:#334155}
+    .loader{display:inline-block;width:14px;height:14px;border-radius:50%;border:2px solid rgba(0,0,0,0.08);border-top-color:var(--accent);animation:spin .9s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    footer{margin-top:18px;font-size:13px;color:var(--muted)}
+    @media (max-width:900px){.grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div>
+        <h1>Stripe Subscriptions — Manage your plan</h1>
+        <div class="small muted">Backend: <span id="backendUrl"><%= (process.env.BASE_URL || '') %> (use server-side BASE_URL)</span></div>
+      </div>
+      <div id="userBox" class="small muted">Checking user...</div>
+    </header>
+
+    <!-- PLANS + Primary UX -->
+    <section class="plans" aria-label="Plans">
+      <div class="card" id="proCard">
+        <h3>Pro</h3>
+        <p class="price">$49 <span class="small muted">/ month</span></p>
+        <p class="small">Everything you need — priority support, unlimited projects, & advanced features.</p>
+        <div style="margin-top:12px">
+          <button class="btn" id="subscribePro" data-plan="pro">Subscribe</button>
+          <button class="btn ghost" id="learnMore">View details</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Free</h3>
+        <p class="price">Free</p>
+        <p class="small">Basic access with limited features. Upgrade anytime.</p>
+        <div style="margin-top:12px">
+          <button class="btn ghost" id="downgrade">Switch to Free</button>
+        </div>
+      </div>
+    </section>
+
+    <div class="grid">
+      <!-- LEFT: All details in one view -->
+      <main>
+        <div class="box" id="sessionBox">
+          <h4>Latest checkout / session info</h4>
+          <div id="sessionInfo" class="small muted">No session loaded.</div>
+          <div class="hint">If you just completed checkout and have <code>?session_id=... </code> in URL, this panel will fetch details.</div>
+        </div>
+
+        <div class="box" style="margin-top:12px">
+          <h4>Subscription details</h4>
+          <div id="subscriptionArea" class="small muted">
+            Loading subscription...
+          </div>
+          <div class="actions" id="subscriptionActions"></div>
+        </div>
+
+        <div class="box" style="margin-top:12px">
+          <h4>Invoices</h4>
+          <div id="invoicesArea" class="small muted">Loading invoices...</div>
+        </div>
+
+        <div class="box" style="margin-top:12px">
+          <h4>Logs / Messages</h4>
+          <pre id="logs" style="height:120px;overflow:auto;background:#fff;padding:10px;border-radius:8px;border:1px solid #eef2f7"></pre>
+        </div>
+      </main>
+
+      <!-- RIGHT: Account summary / billing -->
+      <aside>
+        <div class="box" id="accountBox">
+          <h4>Your account</h4>
+          <p id="accountName" class="small muted">Loading...</p>
+          <p id="accountEmail" class="small muted"></p>
+
+          <div style="margin-top:12px">
+            <button class="btn" id="manageBilling">Open Billing Portal</button>
+            <button class="btn ghost" id="refreshData">Refresh</button>
+          </div>
+
+          <div class="hint" style="margin-top:10px">
+            Use <strong>Manage billing</strong> to change card, view invoices, or cancel from Stripe's Billing Portal.
+          </div>
+        </div>
+      </aside>
+    </div>
+
+    <footer>
+      <div>Tip: after checkout you'll be redirected back to <code>/success?session_id=...</code>. This page will pick up that session_id and load subscription summary automatically.</div>
+    </footer>
+  </div>
+
+  <script>
+    // BASE_URL: change if frontend and backend are on different origins
+    const BASE_URL = ''; // use '' for same origin, or 'https://stripes-five.vercel.app' if cross-origin
+
+    // Utility
+    const $ = (sel) => document.querySelector(sel);
+    const log = (msg) => {
+      const el = $('#logs');
+      el.textContent = new Date().toLocaleTimeString() + " — " + msg + "\n" + el.textContent;
+    }
+
+    // Render user/account info (requires backend endpoint /me)
+    async function loadAccount() {
+      try {
+        $('#accountName').textContent = 'Loading...';
+        const res = await fetch(BASE_URL + '/me', { credentials: 'include' });
+        if (!res.ok) {
+          $('#accountName').textContent = 'Guest (not signed in)';
+          $('#accountEmail').textContent = '';
+          $('#userBox').textContent = 'Guest';
+          log('No /me endpoint or not logged in.');
+          return null;
+        }
+        const data = await res.json();
+        $('#accountName').textContent = data.name || data.email || 'Unnamed user';
+        $('#accountEmail').textContent = data.email ? ('Email: ' + data.email) : '';
+        $('#userBox').textContent = (data.name || data.email || 'User');
+        log('Loaded account info for ' + (data.email || data.name || 'unknown'));
+        return data;
+      } catch (err) {
+        $('#accountName').textContent = 'Guest (error)';
+        $('#accountEmail').textContent = '';
+        $('#userBox').textContent = 'Guest';
+        log('Error loading /me: ' + err.message);
+        return null;
+      }
+    }
+
+    // Load subscription stored in backend (recommended endpoint /account or /subscription)
+    async function loadSubscription() {
+      const area = $('#subscriptionArea');
+      area.innerHTML = '<span class="loader"></span> Loading subscription...';
+      try {
+        const res = await fetch(BASE_URL + '/account', { credentials: 'include' });
+        if (!res.ok) {
+          area.innerHTML = '<div class="small muted">No server-side subscription record. If you just completed checkout, open success details using ?session_id=...</div>';
+          $('#subscriptionActions').innerHTML = '';
+          log('No /account endpoint or no subscription saved.');
+          return null;
+        }
+        const json = await res.json();
+        const sub = json.subscription || json;
+        if (!sub || !sub.plan) {
+          area.innerHTML = '<div class="small muted">You are on the <strong>Free</strong> plan.</div>';
+          $('#subscriptionActions').innerHTML = '<button class="btn" id="subscribeNow">Subscribe to Pro</button>';
+          $('#subscribeNow').onclick = () => location.href = '/subscribe?plan=pro';
+          return null;
+        }
+
+        // Render subscription details
+        const statusBadge = sub.status ? `<span class="badge ${sub.status.toLowerCase()==='active' ? 'success' : 'danger'}">${sub.status}</span>` : '';
+        const periodEnd = sub.period_end ? new Date(sub.period_end).toLocaleString() : '—';
+        area.innerHTML = `
+          <div><strong>Plan:</strong> ${sub.plan} ${statusBadge}</div>
+          <div class="small muted">Plan ID: ${sub.plan_id || '—'}</div>
+          <div style="margin-top:8px"><strong>Next renewal / period end:</strong> ${periodEnd}</div>
+          <div class="small muted">Cancel at period end: ${sub.cancel_at_period_end ? 'Yes' : 'No'}</div>
+        `;
+
+        // Actions
+        const actions = [];
+        if (sub.status && sub.status.toLowerCase() === 'active') {
+          actions.push('<button class="btn" id="openPortal">Manage billing (Stripe)</button>');
+          if (!sub.cancel_at_period_end) actions.push('<button class="btn ghost" id="cancelAtEnd">Cancel at period end</button>');
+          else actions.push('<button class="btn ghost" id="resumeSub">Resume subscription</button>');
+        } else {
+          actions.push('<button class="btn" id="subscribeNow">Subscribe to Pro</button>');
+        }
+        $('#subscriptionActions').innerHTML = actions.join('');
+        // Bind actions
+        $('#openPortal')?.addEventListener('click', async () => {
+          // require stripeCustomerId from account or subscription
+          const customerId = sub.stripeCustomerId || (await getCustomerIdFromAccount());
+          if (!customerId) { alert('No Stripe customer ID available'); return; }
+          window.open(BASE_URL + '/customers/' + customerId, '_blank');
+        });
+        $('#cancelAtEnd')?.addEventListener('click', async () => {
+          if (!confirm('Cancel subscription at period end? This will keep access until the current paid period ends.')) return;
+          await callAction('/subscriptions/' + sub.id + '/cancel-at-period-end', 'POST');
+          await refreshAll();
+        });
+        $('#resumeSub')?.addEventListener('click', async () => {
+          await callAction('/subscriptions/' + sub.id + '/resume', 'POST');
+          await refreshAll();
+        });
+        $('#subscribeNow')?.addEventListener('click', () => location.href = '/subscribe?plan=pro');
+
+        log('Loaded subscription record from /account');
+        return sub;
+
+      } catch (err) {
+        area.innerHTML = '<div class="small muted">Failed to load subscription: ' + err.message + '</div>';
+        $('#subscriptionActions').innerHTML = '';
+        log('Error loading /account: ' + err.message);
+        return null;
+      }
+    }
+
+    // Invoices list (recommended endpoint /invoices)
+    async function loadInvoices() {
+      try {
+        const res = await fetch(BASE_URL + '/invoices', { credentials: 'include' });
+        const out = $('#invoicesArea');
+        if (!res.ok) {
+          out.innerHTML = '<div class="small muted">No invoices endpoint or none available.</div>';
+          return;
+        }
+        const json = await res.json();
+        if (!json.invoices || json.invoices.length === 0) {
+          out.innerHTML = '<div class="small muted">No invoices found.</div>';
+          return;
+        }
+        let html = '<table><thead><tr><th>Invoice</th><th>Amount</th><th>Status</th><th>Date</th></tr></thead><tbody>';
+        for (const inv of json.invoices) {
+          const amount = (inv.amount_paid / 100).toFixed(2);
+          const d = new Date(inv.created * 1000).toLocaleDateString();
+          html += `<tr><td><a href="${inv.hosted_invoice_url || inv.invoice_pdf || '#'}" target="_blank">${inv.number || inv.id}</a></td><td>$${amount}</td><td>${inv.status}</td><td>${d}</td></tr>`;
+        }
+        html += '</tbody></table>';
+        out.innerHTML = html;
+        log('Loaded invoices');
+      } catch (err) {
+        $('#invoicesArea').innerHTML = '<div class="small muted">Failed to load invoices: ' + err.message + '</div>';
+        log('Error loading invoices: ' + err.message);
+      }
+    }
+
+    // If redirected from Stripe success with ?session_id=xxx, fetch success-details
+    async function loadSessionFromQuery() {
+      const params = new URLSearchParams(window.location.search);
+      const sessionId = params.get('session_id') || params.get('sessionid') || params.get('session');
+      if (!sessionId) return null;
+      $('#sessionInfo').innerHTML = '<span class="loader"></span> Loading session details...';
+      try {
+        const res = await fetch(BASE_URL + '/success-details?session_id=' + encodeURIComponent(sessionId));
+        if (!res.ok) {
+          $('#sessionInfo').textContent = 'Failed to fetch session details.';
+          log('/success-details returned error.');
+          return null;
+        }
+        const json = await res.json();
+        window.history.replaceState({}, document.title, window.location.pathname); // remove query
+        $('#sessionInfo').innerHTML = `<div><strong>Plan:</strong> ${json.planName || '—'}</div>
+          <div class="small muted">Subscription ID: ${json.session.subscription?.id || '—'}</div>
+          <div class="small muted">Customer: ${json.customer?.email || json.customer?.name || '—'}</div>
+          <div style="margin-top:8px"><a class="btn" href="/account">Go to account</a></div>`;
+        log('Loaded session details for session ' + sessionId);
+        return json;
+      } catch (err) {
+        $('#sessionInfo').textContent = 'Failed to fetch session details: ' + err.message;
+        log('Error fetching success-details: ' + err.message);
+        return null;
+      }
+    }
+
+    // Helper to trigger backend actions (cancel/resume endpoints recommended)
+    async function callAction(path, method='POST') {
+      try {
+        const res = await fetch(BASE_URL + path, { method, credentials: 'include' });
+        if (!res.ok) {
+          const t = await res.text();
+          alert('Action failed: ' + t);
+          log('Action ' + path + ' failed: ' + t);
+          return null;
+        }
+        const j = await res.json().catch(()=>null);
+        log('Action ' + path + ' succeeded');
+        return j;
+      } catch (err) {
+        alert('Network error: ' + err.message);
+        log('Action ' + path + ' network error: ' + err.message);
+        return null;
+      }
+    }
+
+    // Try to get stripe customer id from /me if account doesn't include it
+    async function getCustomerIdFromAccount() {
+      try {
+        const res = await fetch(BASE_URL + '/me', { credentials: 'include' });
+        if (!res.ok) return null;
+        const j = await res.json();
+        return j.stripeCustomerId || j.stripe_customer_id || null;
+      } catch (e) { return null; }
+    }
+
+    async function refreshAll() {
+      await loadAccount();
+      await loadSubscription();
+      await loadInvoices();
+    }
+
+    // Bind main buttons
+    document.addEventListener('DOMContentLoaded', async () => {
+      // Subscribe button triggers backend /subscribe which redirects to Stripe checkout.
+      $('#subscribePro').addEventListener('click', async (e) => {
+        // If you want to create session via AJAX and return session.url -> redirect, change backend to return JSON.
+        // By default, your backend's GET /subscribe already redirects, so we'll simply navigate there:
+        const plan = e.target.dataset.plan || 'pro';
+        window.location.href = '/subscribe?plan=' + plan;
+      });
+
+      $('#learnMore').addEventListener('click', () => alert('Pro plan includes advanced features.'));
+
+      $('#manageBilling').addEventListener('click', async () => {
+        // Get stripeCustomerId from account or subscription
+        const acct = await fetch(BASE_URL + '/me', { credentials: 'include' }).then(r=>r.ok? r.json(): null).catch(()=>null);
+        const cust = acct?.stripeCustomerId || acct?.stripe_customer_id;
+        if (!cust) { alert('No Stripe customer ID on account.'); return; }
+        // This opens /customers/:customerId on your backend which creates billing portal session and redirects.
+        window.open(BASE_URL + '/customers/' + cust, '_blank');
+      });
+
+      $('#refreshData').addEventListener('click', refreshAll);
+
+      // On load: attempt to read session_id and load account/sub/invoices
+      await loadSessionFromQuery();
+      await refreshAll();
+    });
+  </script>
 </body>
 </html>
