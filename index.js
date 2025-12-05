@@ -409,6 +409,31 @@ app.post('/webhook', express.raw({ type: 'application/json' }), async (req, res)
 
       break;
     }
+          // Add this case to your webhook switch statement
+case 'customer.subscription.deleted':
+    const deletedSubscription = event.data.object;
+    // We need to find the user associated with this subscription
+    // If you saved stripeCustomerId on the user, you can query by that.
+    // Or if you passed userId in metadata, use that.
+    
+    // Example: Query users by stripeCustomerId
+    const usersRef = db.collection('users');
+    const snapshot = await usersRef.where('stripeCustomerId', '==', deletedSubscription.customer).get();
+
+    if (!snapshot.empty) {
+        snapshot.forEach(async (doc) => {
+            await doc.ref.update({
+                plan: 'free',
+                status: 'CANCELLED', // Use a distinct status for history, or just 'ACTIVE' if you want them "Active on Free"
+                plan_id: null,
+                period_end: null,
+                cancel_at_period_end: false,
+                updatedAt: new Date()
+            });
+            console.log(`User ${doc.id} downgraded to Free.`);
+        });
+    }
+    break;
 
     default:
       console.log(`Unhandled event type: ${event.type}`);
